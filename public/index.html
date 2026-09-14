@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>美股崩盘风险监测仪</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📉</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<style>
+  :root { --bg:#0e1117; --panel:#262730; --side:#1a1c24; --border:#30333f; --text:#fafafa; --muted:#9da3ad;
+          --link:#4da6ff; --red:#ef553b; --orange:#ffa15a; --green:#00cc96; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif; }
+  a { color:var(--link); text-decoration:none; } a:hover { text-decoration:underline; }
+  .layout { display:flex; min-height:100vh; }
+  aside { width:320px; flex-shrink:0; background:var(--side); padding:56px 20px 40px; border-right:1px solid var(--border); overflow-y:auto; max-height:100vh; position:sticky; top:0; }
+  main { flex:1; min-width:0; padding:40px 48px; max-width:1400px; }
+  h1 { font-size:30px; margin:0 0 12px; } h2 { font-size:20px; margin:28px 0 12px; } h3 { font-size:16px; margin:22px 0 8px; }
+  hr { border:0; border-top:1px solid var(--border); margin:24px 0; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+  input[type=number], input[type=text], select { width:100%; padding:8px 10px; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; font-size:14px; }
+  input[type=range] { width:100%; accent-color:#ff4b4b; }
+  .row { display:flex; justify-content:space-between; font-size:13px; }
+  .info { font-size:12.5px; background:rgba(28,131,225,.12); color:#c7dcf5; border-radius:6px; padding:10px 12px; margin:8px 0; }
+  .info ul { margin:4px 0 0; padding-left:18px; }
+  .caption { font-size:12.5px; color:var(--muted); }
+  details { background:var(--panel); border-radius:6px; padding:8px 12px; margin:12px 0; }
+  summary { cursor:pointer; font-weight:600; }
+  .banner { padding:12px 16px; border-radius:6px; margin:8px 0 12px; }
+  .banner.ok { background:rgba(0,204,150,.15); color:#7fe7c4; } .banner.warn { background:rgba(255,161,90,.15); color:#ffd2a8; }
+  .grid2 { display:grid; grid-template-columns:1fr 2fr; gap:24px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .grid5 { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+  .metric .lbl { font-size:13px; color:var(--muted); } .metric .val { font-size:28px; font-weight:600; }
+  .delta { font-size:13px; display:inline-block; padding:1px 8px; border-radius:10px; }
+  .delta.hi { background:rgba(239,85,59,.2); color:#ff8c7a; } .delta.lo { background:rgba(0,204,150,.2); color:#62e3bd; } .delta.off { background:rgba(157,163,173,.2); color:var(--muted); }
+  .advice { padding:20px; border-radius:10px; color:#fff; } .advice h3 { margin:0; } .advice p { margin:10px 0 0; }
+  .wsum { font-size:13px; padding:6px 10px; border-radius:6px; margin-top:8px; }
+  .gh { position:fixed; top:10px; left:10px; z-index:10; color:#fff; background:#24292e; padding:6px 12px; border-radius:20px; font-size:13px; font-weight:bold; display:flex; gap:8px; align-items:center; border:1px solid #444; }
+  .gh:hover { background:#444; color:var(--link); text-decoration:none; }
+  .chart { width:100%; }
+  @media (max-width: 900px) {
+    .layout { flex-direction:column; } aside { width:auto; max-height:none; position:static; border-right:0; border-bottom:1px solid var(--border); }
+    main { padding:24px 16px; } .grid2 { grid-template-columns:1fr; } .grid5 { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<a class="gh" href="https://github.com/middletoo/US_Stock_Crash_Monitor" target="_blank">
+  <svg height="18" width="18" viewBox="0 0 16 16" fill="white"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+  GitHub 项目
+</a>
+<div class="layout">
+<aside>
+  <h2 style="margin-top:0">🛠️ 设置与校准</h2>
+  <a href="https://github.com/middletoo/US_Stock_Crash_Monitor" target="_blank">📂 查看 GitHub 源代码</a>
+
+  <h3>0. 监测标的</h3>
+  <label for="ticker">选择你要分析的ETF</label>
+  <select id="ticker"><option value="VOO">VOO (标普500)</option><option value="QQQ">QQQ (纳指100)</option></select>
+
+  <details>
+    <summary>⚖️ 模型权重配置 (点击展开)</summary>
+    <p class="caption">您可以根据当前市场环境，拖动滑块调整各指标权重。</p>
+    <div id="weights"></div>
+    <div id="wsum" class="wsum"></div>
+  </details>
+
+  <hr>
+  <h3>1. 巴菲特指标 (Buffett Indicator)</h3>
+  <a href="https://sc.macromicro.me/series/616/wilshire5000" target="_blank">🔗 Wilshire 5000</a> |
+  <a href="https://www.macromicro.me/collections/2/us-gdp-relative/2/us-real-gdp" target="_blank">🔗 US GDP</a>
+  <label for="wilshire">美股总市值 (Trillion $)</label><input id="wilshire" type="number" value="59.0" step="0.5">
+  <label for="gdp">美国 GDP (Trillion $)</label><input id="gdp" type="number" value="29.0" step="0.1">
+  <p class="caption">当前计算值: <b id="buffettVal"></b></p>
+  <div class="info"><b>⚠️ 注意：GDP 数据通常每季度更新，存在滞后性。</b><br><b>📊 历史参考阈值:</b>
+    <ul><li><b>历史平均 (1950-2023)</b>: ~100%</li><li><b>近10年平均</b>: ~150% (低利率环境推高)</li><li><b>2000年 泡沫峰值</b>: ~140%</li><li><b>2021年 历史峰值</b>: ~200% (极度高危)</li></ul></div>
+
+  <h3>2. 席勒市盈率 (Shiller PE)</h3>
+  <a href="https://www.multpl.com/shiller-pe" target="_blank">🔗 Multpl Shiller PE</a>
+  <label for="shiller">CAPE Ratio</label><input id="shiller" type="number" value="40.0" step="0.1">
+  <div class="info"><b>📊 历史参考阈值:</b>
+    <ul><li><b>历史平均</b>: ~17.0</li><li><b>近10年平均</b>: ~30.0</li><li><b>1929年 大萧条</b>: 30.0</li><li><b>2000年 互联网泡沫</b>: 44.2 (历史最高)</li><li><b>2021年 疫情后</b>: 38.6</li></ul></div>
+
+  <h3>3. 收益率曲线 (10Y-2Y)</h3>
+  <a href="https://cn.investing.com/rates-bonds/usa-government-bonds" target="_blank">🔗 CN.Investing 债券</a>
+  <label for="y2" title="输入2年期收益率，系统将自动对比10年期。">2年期美债收益率 (%)</label><input id="y2" type="number" value="4.20" step="0.01">
+  <div class="info"><b>📊 历史参考阈值:</b>
+    <ul><li><b>正常状态</b>: +0.8% ~ +2.0%</li><li><b>倒挂预警 (&lt; 0%)</b>: 2000, 2007, 2019, 2022 均出现</li><li><b>解挂风险 (倒挂后回升至 &gt; 0%)</b>: 最危险时刻。</li></ul></div>
+
+  <h3>4. 恐慌与贪婪指数</h3>
+  <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">🔗 CNN Fear &amp; Greed</a>
+  <div class="row"><label for="fear">Fear &amp; Greed Index (0-100)</label><b id="fearVal"></b></div>
+  <input id="fear" type="range" min="0" max="100" value="45">
+  <p class="caption">极度贪婪 (&gt;80) 往往是短期顶部信号。</p>
+</aside>
+
+<main>
+  <h1 id="title">🚨 Wall Street Quant: 崩盘风险监测仪</h1>
+  <div id="banner" class="banner warn">⏳ 正在加载市场数据…</div>
+  <div id="summary"></div>
+  <hr>
+
+  <div class="grid2">
+    <div id="gauge" class="chart"></div>
+    <div>
+      <h2 style="margin-top:0">🤖 量化建议</h2>
+      <div id="advice" class="advice"></div>
+      <h3>🆚 历史对比参考</h3>
+      <p>如果用当前的权重设置，历史大顶的风险分数为：</p>
+      <div id="histMetrics" class="grid3"></div>
+    </div>
+  </div>
+
+  <h2>🔍 风险因子分解 (含自定义权重)</h2>
+  <div id="factors" class="grid5"></div>
+  <hr>
+
+  <h2>⚔️ 跨时代风险大比拼 (Stress Test)</h2>
+  <p class="caption">基于你当前设定的权重，对比<b>当前市场</b>与<b>历史上三次著名崩盘前夜</b>的风险评分。</p>
+  <div id="histChart" class="chart"></div>
+  <details>
+    <summary>ℹ️ 查看历史数据来源说明</summary>
+    <ul>
+      <li><b>2000 互联网泡沫</b>: 选取 2000年3月 数据。特征是极高的 Shiller PE (44+) 和 倒挂的利差。</li>
+      <li><b>2008 次贷危机</b>: 选取 2007年10月 数据。特征是股市见顶，利差刚从倒挂恢复变正（经典的衰退信号）。</li>
+      <li><b>2022 加息熊市</b>: 选取 2022年1月 数据。特征是巴菲特指标创历史新高 (~200%)。</li>
+      <li><b>计算逻辑</b>: 使用您在侧边栏调整的权重，实时计算这些历史时刻如果套用当前模型会得多少分。</li>
+    </ul>
+  </details>
+  <hr>
+
+  <h2 id="priceTitle">📈 价格 vs 200日均线</h2>
+  <div id="priceChart" class="chart"></div>
+  <p class="caption" style="margin-top:24px">本项目仅供编程学习与量化研究参考，不构成任何投资建议。</p>
+</main>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const WEIGHTS = [
+  ["buffett", "1. 巴菲特指标权重", 15], ["shiller", "2. 席勒市盈率权重", 25], ["yield", "3. 美债利差权重", 25],
+  ["technical", "4. 均线乖离权重", 20], ["sentiment", "5. 恐慌指数权重", 15],
+];
+$("weights").innerHTML = WEIGHTS.map(([k, name, v]) =>
+  `<div class="row"><label for="w_${k}">${name}</label><b id="w_${k}_v"></b></div>
+   <input id="w_${k}" type="range" min="0" max="50" step="5" value="${v}">`).join("");
+
+const HISTORY = {
+  "2000 互联网泡沫 (Top)":     { buffett: 145.0, shiller: 44.2, us10y: 6.2, us2y: 6.6, fear: 90, price: 115, sma: 100 },
+  "2008 次贷危机 (Pre-Crash)": { buffett: 110.0, shiller: 27.5, us10y: 4.6, us2y: 4.2, fear: 75, price: 108, sma: 100 },
+  "2022 加息熊市 (Top)":       { buffett: 195.0, shiller: 38.3, us10y: 1.6, us2y: 0.8, fear: 75, price: 112, sma: 100 },
+};
+
+// Same scoring model as app.py
+function riskScore(price, sma, us10y, us2y, buffett, shiller, fear, w) {
+  const b = buffett > 200 ? 100 : buffett > 180 ? 90 : buffett > 150 ? 75 : buffett > 120 ? 50 : 25;
+  const s = shiller > 40 ? 100 : shiller > 35 ? 90 : shiller > 30 ? 70 : shiller > 25 ? 50 : 20;
+  const spread = us10y - us2y;
+  const [y, status] = spread < -0.5 ? [80, "深度倒挂"] : spread < 0 ? [60, "轻度倒挂"] : spread < 0.5 ? [70, "解挂/平坦(危)"] : [30, "正常"];
+  const dev = sma && isFinite(sma) ? (price - sma) / sma * 100 : 0;
+  const m = dev > 25 ? 100 : dev > 20 ? 85 : dev > 15 ? 65 : dev > 5 ? 40 : dev < -10 ? 10 : 20;
+  const f = fear > 80 ? 100 : fear > 60 ? 70 : fear < 20 ? 0 : 40;
+  const score = b * w.buffett + s * w.shiller + y * w.yield + m * w.technical + f * w.sentiment;
+  return { score, d: { Buffett: [b, buffett], Shiller: [s, shiller], Yield: [y, spread, status], Technical: [m, dev], Sentiment: [f, fear] } };
+}
+
+function sma(arr, n) {
+  let sum = 0;
+  return arr.map((v, i) => { sum += v; if (i >= n) sum -= arr[i - n]; return i >= n - 1 ? sum / n : null; });
+}
+
+function mockData(ticker) {
+  const base = ticker === "QQQ" ? 500 : 450, rows = [];
+  let noise = 0; const d = new Date();
+  const days = [];
+  while (days.length < 500) { if (d.getDay() % 6) days.unshift(new Date(d)); d.setDate(d.getDate() - 1); }
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+  days.forEach((day, i) => {
+    noise += gauss() * 5;
+    const c = base + 50 * i / 499 + noise, o = c + (Math.random() * 4 - 2);
+    rows.push({ t: day.getTime() / 1000, o, h: o + Math.random() * 5, l: o - Math.random() * 5, c });
+  });
+  return { rows, us10y: 4.15 + (Math.random() * 0.2 - 0.1), mock: true };
+}
+
+const cache = {};
+async function loadMarket(ticker) {
+  if (cache[ticker]) return cache[ticker];
+  try {
+    const r = await fetch(`/api/market?ticker=${ticker}`);
+    const j = await r.json();
+    if (!r.ok || !j.rows?.length) throw new Error(j.error || "empty");
+    cache[ticker] = { rows: j.rows, us10y: j.us10y, mock: false };
+  } catch (e) {
+    console.warn("market fetch failed, using mock data", e);
+    cache[ticker] = mockData(ticker);
+  }
+  return cache[ticker];
+}
+
+const num = id => parseFloat($(id).value) || 0;
+const color = s => s > 80 ? "#ef553b" : s > 60 ? "#ffa15a" : "#00cc96";
+const DARK = { paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { color: "#fafafa" } };
+const CFG = { responsive: true, displaylogo: false };
+let market = null;
+
+function render() {
+  const ticker = $("ticker").value;
+  const w = {}; let total = 0;
+  WEIGHTS.forEach(([k]) => { const v = +$(`w_${k}`).value; $(`w_${k}_v`).textContent = v + "%"; w[k] = v / 100; total += v; });
+  $("wsum").textContent = total === 100 ? `✅ 权重总和: ${total}% (完美)` : `⚠️ 当前权重总和: ${total}% (建议调整为 100%)`;
+  $("wsum").className = "wsum banner " + (total === 100 ? "ok" : "warn");
+
+  const buffett = num("wilshire") / (num("gdp") || 1) * 100;
+  $("buffettVal").textContent = buffett.toFixed(1) + "%";
+  $("fearVal").textContent = $("fear").value;
+  $("title").textContent = `🚨 Wall Street Quant: ${ticker} 崩盘风险监测仪`;
+  $("priceTitle").textContent = `📈 ${ticker} 价格 vs 200日均线`;
+  if (!market) return;
+
+  const closes = market.rows.map(r => r.c), ma = sma(closes, 200);
+  const price = closes.at(-1), ma200 = ma.at(-1), us10y = market.us10y;
+  $("banner").className = "banner " + (market.mock ? "warn" : "ok");
+  $("banner").innerHTML = market.mock ? "⚠️ <b>演示模式</b>：无法连接数据源，当前使用模拟数据。" : "✅ <b>实时连接</b>：数据源正常。";
+  $("summary").innerHTML = `<b>当前标的</b>: ${ticker} | <b>最新价格</b>: $${price.toFixed(2)} | <b>10年期美债收益率</b>: ${us10y.toFixed(2)}% (自动获取)`;
+
+  const { score, d } = riskScore(price, ma200, us10y, num("y2"), buffett, num("shiller"), +$("fear").value, w);
+  const hist = Object.entries(HISTORY).map(([name, h]) =>
+    [name, riskScore(h.price, h.sma, h.us10y, h.us2y, h.buffett, h.shiller, h.fear, w).score]);
+
+  Plotly.react("gauge", [{
+    type: "indicator", mode: "gauge+number", value: score, title: { text: `${ticker} 崩盘风险指数` },
+    gauge: { axis: { range: [0, 100] }, bar: { color: "rgba(0,0,0,0)" },
+      steps: [{ range: [0, 40], color: "#00cc96" }, { range: [40, 70], color: "#ffa15a" }, { range: [70, 100], color: "#ef553b" }],
+      threshold: { line: { color: "black", width: 4 }, thickness: 0.75, value: score } },
+  }], { ...DARK, height: 300, margin: { l: 20, r: 20, t: 50, b: 20 } }, CFG);
+
+  const [bg, t, adv] = score > 80
+    ? ["#ef553b", "极高风险 (Extreme Risk)", `模型显示 ${ticker} 极度过热。建议大幅降低仓位，购买Put对冲，持有现金。`]
+    : score > 60
+    ? ["#ffa15a", "风险累积 (Elevated Risk)", `风险正在积聚。${ticker} 波动可能加剧，停止追高，考虑适当对冲，收紧止损线。`]
+    : ["#00cc96", "相对安全 (Safe Zone)", "市场处于正常波动范围。维持定投计划，关注长期价值。"];
+  $("advice").style.background = bg;
+  $("advice").innerHTML = `<h3>${t}</h3><p>${adv}</p>`;
+  $("histMetrics").innerHTML = hist.map(([n, s]) =>
+    `<div class="metric"><div class="lbl">${n.split(" ")[0]} 峰值</div><div class="val">${s.toFixed(0)}</div></div>`).join("");
+
+  const pct = k => Math.round(w[k] * 100);
+  const risk = r => `<span class="delta ${r >= 50 ? "hi" : "lo"}">Risk: ${r}</span>`;
+  const factors = [
+    ["巴菲特指标", "buffett", d.Buffett[1].toFixed(1) + "%", risk(d.Buffett[0])],
+    ["席勒市盈率", "shiller", d.Shiller[1].toFixed(1), risk(d.Shiller[0])],
+    ["10Y-2Y 利差", "yield", d.Yield[1].toFixed(2) + "%", `<span class="delta off">${d.Yield[2]}</span>`],
+    ["均线乖离率", "technical", d.Technical[1].toFixed(1) + "%", risk(d.Technical[0])],
+    ["贪婪指数", "sentiment", d.Sentiment[1], risk(d.Sentiment[0])],
+  ];
+  $("factors").innerHTML = factors.map(([n, k, v, dl]) =>
+    `<div class="metric"><div class="lbl">${n} (权重: ${pct(k)}%)</div><div class="val">${v}</div>${dl}</div>`).join("");
+
+  const names = ["当前 (Now)", ...hist.map(h => h[0])], scores = [score, ...hist.map(h => h[1])];
+  Plotly.react("histChart", [{
+    type: "bar", orientation: "h", x: scores, y: names, text: scores.map(s => s.toFixed(1)), textposition: "auto",
+    marker: { color: scores.map(color), line: { color: ["white", "rgba(0,0,0,0)", "rgba(0,0,0,0)", "rgba(0,0,0,0)"], width: [2, 0, 0, 0] } },
+  }], { ...DARK, template: "plotly_dark", height: 300, margin: { l: 20, r: 20, t: 20, b: 40 },
+    xaxis: { range: [0, 100], title: { text: "风险评分 (0-100)" }, gridcolor: "#333" }, yaxis: { autorange: "reversed", automargin: true },
+    shapes: [60, 80].map((x, i) => ({ type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1, line: { width: 1, dash: "dash", color: i ? "red" : "orange" } })),
+    annotations: [[60, "警告线"], [80, "崩盘线"]].map(([x, text]) => ({ x, y: 1, yref: "paper", text, showarrow: false, yanchor: "bottom" })),
+  }, CFG);
+
+  const dates = market.rows.map(r => new Date(r.t * 1000));
+  Plotly.react("priceChart", [
+    { type: "candlestick", x: dates, open: market.rows.map(r => r.o), high: market.rows.map(r => r.h), low: market.rows.map(r => r.l), close: closes, name: ticker },
+    { type: "scatter", mode: "lines", x: dates, y: ma, name: "SMA 200", line: { color: "orange", width: 2 } },
+  ], { ...DARK, height: 450, margin: { l: 50, r: 20, t: 20, b: 40 }, xaxis: { rangeslider: { visible: false }, gridcolor: "#333" }, yaxis: { gridcolor: "#333" } }, CFG);
+}
+
+async function refresh() {
+  market = null;
+  $("banner").className = "banner warn"; $("banner").textContent = "⏳ 正在加载市场数据…";
+  render();
+  market = await loadMarket($("ticker").value);
+  render();
+}
+
+document.querySelectorAll("aside input").forEach(el => el.addEventListener("input", render));
+$("ticker").addEventListener("change", refresh);
+refresh();
+</script>
+</body>
+</html>
