@@ -39,6 +39,11 @@
   .gh { position:fixed; top:10px; left:10px; z-index:10; color:#fff; background:#24292e; padding:6px 12px; border-radius:20px; font-size:13px; font-weight:bold; display:flex; gap:8px; align-items:center; border:1px solid #444; }
   .gh:hover { background:#444; color:var(--link); text-decoration:none; }
   .chart { width:100%; }
+  .hm-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  #heatmap { height:560px; }
+  .seg { display:flex; gap:4px; }
+  .seg button { background:var(--panel); color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:3px 10px; font:600 12px ui-monospace,Consolas,monospace; cursor:pointer; }
+  .seg button.on { background:#f5a623; color:#111; border-color:#f5a623; }
   @media (max-width: 900px) {
     .layout { flex-direction:column; } aside { width:auto; max-height:none; position:static; border-right:0; border-bottom:1px solid var(--border); }
     main { padding:24px 16px; } .grid2 { grid-template-columns:1fr; } .grid5 { grid-template-columns:repeat(2,1fr); }
@@ -132,6 +137,16 @@
 
   <h2 id="priceTitle">📈 价格 vs 200日均线</h2>
   <div id="priceChart" class="chart"></div>
+  <hr>
+
+  <div class="hm-head">
+    <h2 style="margin:0">🗺️ 美股 ETF 资金流热力图 <span class="caption">面积 = AUM · 颜色 = 估算净流入</span></h2>
+    <div id="hmPeriods" class="seg"></div>
+  </div>
+  <div id="hmBanner" class="caption"></div>
+  <div id="heatmap" class="chart"></div>
+  <p class="caption">估算净流入 = 份额(shares outstanding)每日变化 × 当前价格。份额数据来自 Yahoo Finance，每个交易日采样一次；估算从首次采样日开始累积，历史不足时各周期以最早快照为基准。</p>
+
   <p class="caption" style="margin-top:24px">本项目仅供编程学习与量化研究参考，不构成任何投资建议。</p>
 </main>
 </div>
@@ -283,9 +298,66 @@ async function refresh() {
   render();
 }
 
+// ---------- ETF heat map ----------
+const HM_PERIODS = ["1D", "1W", "1M", "3M", "YTD", "1Y"];
+let hmData = null, hmPeriod = "1D";
+const money = v => {
+  const a = Math.abs(v), s = v < 0 ? "-" : "+";
+  return a >= 1e9 ? `${s}$${(a / 1e9).toFixed(2)}B` : a >= 1e6 ? `${s}$${(a / 1e6).toFixed(0)}M` : a > 0 ? `${s}$${(a / 1e3).toFixed(0)}K` : "$0";
+};
+const aumFmt = v => v >= 1e12 ? `$${(v / 1e12).toFixed(2)}T` : `$${(v / 1e9).toFixed(1)}B`;
+// Gray at zero flow, ramping to green (inflow) / red (outflow).
+function flowColor(f, maxAbs) {
+  const t = maxAbs ? Math.min(1, Math.sqrt(Math.abs(f) / maxAbs)) : 0;
+  const [g, to] = [[58, 61, 70], f >= 0 ? [52, 199, 89] : [210, 55, 55]];
+  return `rgb(${g.map((c, i) => Math.round(c + (to[i] - c) * t)).join(",")})`;
+}
+
+$("hmPeriods").innerHTML = HM_PERIODS.map(p => `<button data-p="${p}">${p}</button>`).join("");
+$("hmPeriods").addEventListener("click", e => { if (e.target.dataset.p) { hmPeriod = e.target.dataset.p; renderHeatmap(); } });
+
+function renderHeatmap() {
+  document.querySelectorAll("#hmPeriods button").forEach(b => b.classList.toggle("on", b.dataset.p === hmPeriod));
+  if (!hmData) return;
+  const etfs = hmData.etfs, groups = [...new Set(etfs.map(e => e.group))];
+  const maxAbs = Math.max(...etfs.map(e => Math.abs(e.flows[hmPeriod])));
+  const hoverRows = e => HM_PERIODS.map(p => `${p.padEnd(4)} <span style="color:${e.flows[p] >= 0 ? "#34c759" : "#ff5a5a"}">${money(e.flows[p])}</span>`).join("<br>");
+  const groupAum = g => etfs.filter(e => e.group === g).reduce((s, e) => s + e.aum, 0);
+  Plotly.react("heatmap", [{
+    type: "treemap", branchvalues: "total", sort: true, tiling: { pad: 2 },
+    ids: [...groups, ...etfs.map(e => e.symbol)],
+    labels: [...groups, ...etfs.map(e => e.symbol)],
+    parents: [...groups.map(() => ""), ...etfs.map(e => e.group)],
+    values: [...groups.map(groupAum), ...etfs.map(e => e.aum)],
+    customdata: [...groups.map(() => ["", ""]), ...etfs.map(e => [money(e.flows[hmPeriod]),
+      `<b>${e.symbol}</b> ${money(e.flows[hmPeriod])}<br>${e.name}<br>${e.group} · AUM ${aumFmt(e.aum)} · $${e.price.toFixed(2)}<br><br>${hoverRows(e)}`])],
+    marker: { colors: [...groups.map(() => "#16181f"), ...etfs.map(e => flowColor(e.flows[hmPeriod], maxAbs))], line: { color: "#0e1117", width: 1 } },
+    texttemplate: "<b>%{label}</b><br>%{customdata[0]}",
+    hovertemplate: "%{customdata[1]}<extra></extra>",
+    textfont: { family: "ui-monospace, Consolas, monospace", color: "#fff" },
+    pathbar: { visible: false },
+  }], { ...DARK, height: 560, margin: { l: 0, r: 0, t: 0, b: 0 },
+    hoverlabel: { bgcolor: "#111", bordercolor: "#555", font: { family: "ui-monospace, Consolas, monospace", color: "#ddd" } } }, CFG);
+}
+
+async function loadHeatmap() {
+  renderHeatmap();
+  $("hmBanner").textContent = "⏳ 正在加载 ETF 数据…";
+  try {
+    const r = await fetch("/api/etfs"), j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    hmData = j;
+    $("hmBanner").textContent = `估算自 ${j.since} 起 · 最新 ${j.asOf} · 共 ${j.snapshots} 个快照${j.snapshots < 2 ? "（首日：净流入需下一交易日才开始显示）" : ""}`;
+    renderHeatmap();
+  } catch (e) {
+    $("hmBanner").textContent = "⚠️ ETF 数据加载失败：" + e.message;
+  }
+}
+
 document.querySelectorAll("aside input").forEach(el => el.addEventListener("input", render));
 $("ticker").addEventListener("change", refresh);
 refresh();
+loadHeatmap();
 </script>
 </body>
 </html>

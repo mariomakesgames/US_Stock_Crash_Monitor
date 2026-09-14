@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "outputDirectory": "public"
+  "outputDirectory": "public",
+  "crons": [{ "path": "/api/etfs", "schedule": "30 21 * * 1-5" }]
 }
