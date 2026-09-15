@@ -41,12 +41,18 @@
   .chart { width:100%; }
   .hm-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
   #heatmap { height:560px; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:8px; }
+  .grid-ind { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .card .lbl { font-size:12.5px; color:var(--muted); } .card .val { font-size:24px; font-weight:600; }
+  .bar { height:6px; border-radius:3px; background:linear-gradient(90deg,#c0392b,#e67e22,#9da3ad,#7ccf6b,#1e9e4a); position:relative; margin-top:8px; }
+  .bar i { position:absolute; top:-4px; width:3px; height:14px; background:#fff; border-radius:2px; transform:translateX(-1px); }
   .seg { display:flex; gap:4px; }
   .seg button { background:var(--panel); color:var(--muted); border:1px solid var(--border); border-radius:4px; padding:3px 10px; font:600 12px ui-monospace,Consolas,monospace; cursor:pointer; }
   .seg button.on { background:#f5a623; color:#111; border-color:#f5a623; }
   @media (max-width: 900px) {
     .layout { flex-direction:column; } aside { width:auto; max-height:none; position:static; border-right:0; border-bottom:1px solid var(--border); }
-    main { padding:24px 16px; } .grid2 { grid-template-columns:1fr; } .grid5 { grid-template-columns:repeat(2,1fr); }
+    main { padding:24px 16px; } .grid2 { grid-template-columns:1fr; } .grid5, .grid4 { grid-template-columns:repeat(2,1fr); }
   }
 </style>
 </head>
@@ -97,7 +103,7 @@
   <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">🔗 CNN Fear &amp; Greed</a>
   <div class="row"><label for="fear">Fear &amp; Greed Index (0-100)</label><b id="fearVal"></b></div>
   <input id="fear" type="range" min="0" max="100" value="45">
-  <p class="caption">极度贪婪 (&gt;80) 往往是短期顶部信号。</p>
+  <p class="caption">极度贪婪 (&gt;80) 往往是短期顶部信号。<span id="fearAuto"></span></p>
 </aside>
 
 <main>
@@ -137,6 +143,21 @@
 
   <h2 id="priceTitle">📈 价格 vs 200日均线</h2>
   <div id="priceChart" class="chart"></div>
+  <hr>
+
+  <h2>😱 CNN 恐慌与贪婪指数 (Fear &amp; Greed Index)</h2>
+  <div id="fgBanner" class="caption">⏳ 正在加载 CNN 数据…</div>
+  <div class="grid2">
+    <div>
+      <div id="fgGauge" class="chart" style="height:300px"></div>
+      <div id="fgPrev" class="grid4"></div>
+    </div>
+    <div id="fgHistory" class="chart" style="height:380px"></div>
+  </div>
+  <h3>七大分项指标</h3>
+  <div id="fgIndicators" class="grid-ind"></div>
+  <p class="caption">数据来源：<a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">CNN Fear &amp; Greed Index</a>，每 10 分钟刷新。0–25 极度恐慌 · 25–45 恐慌 · 45–55 中性 · 55–75 贪婪 · 75–100 极度贪婪。</p>
+
   <hr>
 
   <div class="hm-head">
@@ -354,10 +375,62 @@ async function loadHeatmap() {
   }
 }
 
+// ---------- CNN Fear & Greed ----------
+const FG_RATING = { "extreme fear": "极度恐慌", fear: "恐慌", neutral: "中性", greed: "贪婪", "extreme greed": "极度贪婪" };
+const FG_BANDS = [[0, 25, "#c0392b"], [25, 45, "#e67e22"], [45, 55, "#6b7280"], [55, 75, "#7ccf6b"], [75, 100, "#1e9e4a"]];
+const FG_NAMES = {
+  market_momentum_sp500: "市场动能 (S&P 500 vs 125日均线)", stock_price_strength: "股价强度 (52周新高 vs 新低)",
+  stock_price_breadth: "股价广度 (McClellan 成交量)", put_call_options: "看跌/看涨期权比",
+  market_volatility_vix: "市场波动率 (VIX)", junk_bond_demand: "垃圾债需求 (信用利差)", safe_haven_demand: "避险需求 (股 vs 债)",
+};
+const fgColor = s => FG_BANDS.find(([a, b]) => s >= a && s <= b)[2];
+
+async function loadFearGreed() {
+  try {
+    const r = await fetch("/api/feargreed"), j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    const now = j.now, score = Math.round(now.score);
+    $("fgBanner").textContent = `最新更新：${new Date(now.timestamp).toLocaleString("zh-CN")}`;
+
+    Plotly.react("fgGauge", [{
+      type: "indicator", mode: "gauge+number", value: score,
+      title: { text: `当前：${FG_RATING[now.rating] || now.rating}` },
+      gauge: { axis: { range: [0, 100], tickvals: [0, 25, 45, 55, 75, 100] }, bar: { color: "rgba(0,0,0,0)" },
+        steps: FG_BANDS.map(([a, b, c]) => ({ range: [a, b], color: c })),
+        threshold: { line: { color: "white", width: 5 }, thickness: 0.8, value: score } },
+    }], { ...DARK, height: 300, margin: { l: 30, r: 30, t: 60, b: 10 } }, CFG);
+
+    const prev = [["前收盘", now.previous_close], ["1周前", now.previous_1_week], ["1个月前", now.previous_1_month], ["1年前", now.previous_1_year]];
+    $("fgPrev").innerHTML = prev.map(([n, v]) =>
+      `<div class="card"><div class="lbl">${n}</div><div class="val" style="color:${fgColor(v)}">${Math.round(v)}</div></div>`).join("");
+
+    const xs = j.history.map(p => new Date(p[0])), ys = j.history.map(p => p[1]);
+    Plotly.react("fgHistory", [{ type: "scatter", mode: "lines", x: xs, y: ys, line: { color: "#fafafa", width: 2 }, name: "F&G",
+      hovertemplate: "%{x|%Y-%m-%d}: %{y:.0f}<extra></extra>" }], {
+      ...DARK, height: 380, margin: { l: 40, r: 20, t: 30, b: 40 }, title: { text: "过去一年走势", font: { size: 14 } },
+      yaxis: { range: [0, 100], gridcolor: "#333", tickvals: [0, 25, 45, 55, 75, 100] }, xaxis: { gridcolor: "#333" },
+      shapes: FG_BANDS.map(([a, b, c]) => ({ type: "rect", xref: "paper", x0: 0, x1: 1, y0: a, y1: b, fillcolor: c, opacity: 0.15, line: { width: 0 }, layer: "below" })),
+    }, CFG);
+
+    $("fgIndicators").innerHTML = Object.entries(j.indicators).map(([k, v]) =>
+      `<div class="card"><div class="lbl">${FG_NAMES[k] || k}</div>
+       <div class="val" style="color:${fgColor(v.score)}">${Math.round(v.score)} <span style="font-size:13px">${FG_RATING[v.rating] || v.rating}</span></div>
+       <div class="bar"><i style="left:${Math.max(0, Math.min(100, v.score))}%"></i></div></div>`).join("");
+
+    // Feed the live score into the risk model's sentiment input.
+    $("fear").value = score;
+    $("fearAuto").textContent = ` 已自动填入 CNN 实时值 ${score}。`;
+    render();
+  } catch (e) {
+    $("fgBanner").textContent = "⚠️ CNN 数据加载失败：" + e.message;
+  }
+}
+
 document.querySelectorAll("aside input").forEach(el => el.addEventListener("input", render));
 $("ticker").addEventListener("change", refresh);
 refresh();
 loadHeatmap();
+loadFearGreed();
 </script>
 </body>
 </html>
