@@ -41,6 +41,7 @@
   .chart { width:100%; }
   .hm-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
   #heatmap { height:560px; }
+  .tv-wrap { height:520px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:8px; }
   .grid-ind { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
   .card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
@@ -157,6 +158,36 @@
   <h3>七大分项指标</h3>
   <div id="fgIndicators" class="grid-ind"></div>
   <p class="caption">数据来源：<a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">CNN Fear &amp; Greed Index</a>，每 10 分钟刷新。0–25 极度恐慌 · 25–45 恐慌 · 45–55 中性 · 55–75 贪婪 · 75–100 极度贪婪。</p>
+
+  <hr>
+
+  <h2>📊 市场宽度：标普500 股价 &gt; 20日均线占比 (S5TW)</h2>
+  <p class="caption">TradingView 实时图表。该指标统计标普500成分股中，股价位于自身20日均线之上的比例，是判断上涨是否"全面参与"的短期市场宽度指标。
+  <b>&gt;80%</b> 通常代表短期过热；<b>&lt;20%</b> 往往出现在恐慌抛售的底部区域；指数创新高而该指标持续走低（背离）是回调前的典型警讯。</p>
+  <div class="tv-wrap">
+    <div class="tradingview-widget-container" style="height:100%;width:100%">
+      <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+      {
+        "autosize": true,
+        "symbol": "INDEX:S5TW",
+        "interval": "D",
+        "timezone": "America/New_York",
+        "theme": "dark",
+        "style": "2",
+        "locale": "zh_CN",
+        "range": "12M",
+        "backgroundColor": "#0e1117",
+        "gridColor": "rgba(48, 51, 63, 0.6)",
+        "hide_side_toolbar": true,
+        "allow_symbol_change": false,
+        "calendar": false,
+        "support_host": "https://www.tradingview.com"
+      }
+      </script>
+    </div>
+  </div>
+  <p class="caption">图表由 <a href="https://www.tradingview.com/symbols/INDEX-S5TW/" target="_blank">TradingView</a> 提供。相关代码：S5FI（&gt;50日均线占比）、S5OH（&gt;100日均线占比）、S5TH（&gt;200日均线占比，更适合判断长期趋势）。</p>
 
   <hr>
 
