@@ -41,6 +41,12 @@
   .chart { width:100%; }
   .hm-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
   #heatmap { height:560px; }
+  .grid2-cards { display:grid; grid-template-columns:1fr; gap:12px; align-content:start; }
+  .notes { background:var(--panel); border-left:3px solid #ff4b4b; border-radius:6px; padding:14px 18px; margin-top:16px; }
+  .notes ul { margin:0; padding-left:20px; } .notes li { margin-bottom:8px; }
+  .gauge-bar { height:10px; border-radius:5px; background:var(--border); position:relative; overflow:hidden; margin-top:10px; }
+  .gauge-bar > span { position:absolute; left:0; top:0; bottom:0; border-radius:5px; }
+  .gauge-bar > i { position:absolute; top:-3px; width:2px; height:16px; background:#ff4b4b; }
   .tv-wrap { height:520px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:8px; }
   .grid-ind { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; }
@@ -158,6 +164,24 @@
   <h3>七大分项指标</h3>
   <div id="fgIndicators" class="grid-ind"></div>
   <p class="caption">数据来源：<a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank">CNN Fear &amp; Greed Index</a>，每 10 分钟刷新。0–25 极度恐慌 · 25–45 恐慌 · 45–55 中性 · 55–75 贪婪 · 75–100 极度贪婪。</p>
+
+  <hr>
+
+  <h2>🌡️ 波动率双指标：VIX（股市） vs MOVE（债市）</h2>
+  <div id="volBanner" class="caption">⏳ 正在加载波动率数据…</div>
+  <div class="grid2">
+    <div id="volCards" class="grid2-cards"></div>
+    <div id="volChart" class="chart" style="height:420px"></div>
+  </div>
+  <div class="notes">
+    <h3 style="margin-top:0">📝 笔记：为什么这次要盯 MOVE 而不是 VIX</h3>
+    <ul>
+      <li><b>VIX 失真：</b>恐慌指数 VIX 罕见地在 9 月底回落至 <b>15</b> 附近，说明市场并未真正恐慌，更多是机构间的头寸再平衡和 AI 板块内部的高低切换。此外，美国投资者 8 月保证金债务高达 <b>1.45 万亿美元</b>（同比增 37%），依然处于极高水平。</li>
+      <li><b>关键指标（MOVE 指数）：</b>美银策略师警告，必须紧盯衡量债市波动率的 MOVE 指数。该指数在短短几天内暴涨 <b>35%</b>，从 78 飙升至 <b>104</b>，说明以美债为抵押品的金融体系正面临巨大压力。</li>
+      <li><b>出逃点位：</b>不用去猜美债收益率会涨到 5.25% 还是 5.5%，只要盯住 MOVE 指数，如果冲破 <b>125</b>，市场将面临极其猛烈的避险冲击和去杠杆——<b>"冲到 125 就要跑"</b>。</li>
+    </ul>
+    <p class="caption" style="margin-bottom:0">以上为市场观点笔记，非投资建议。图中虚线即 125 警戒线。</p>
+  </div>
 
   <hr>
 
@@ -406,6 +430,55 @@ async function loadHeatmap() {
   }
 }
 
+// ---------- VIX / MOVE volatility ----------
+const MOVE_ALERT = 125;
+const vixState = v => v < 15 ? ["市场自满 (无恐慌)", "#00cc96"] : v < 20 ? ["正常波动", "#7ccf6b"]
+  : v < 30 ? ["risk-off 升温", "#ffa15a"] : ["恐慌", "#ef553b"];
+const moveState = v => v < 90 ? ["债市平稳", "#00cc96"] : v < 110 ? ["压力上升", "#ffa15a"]
+  : v < MOVE_ALERT ? ["逼近警戒线", "#ff7a45"] : ["⚠️ 突破 125：去杠杆风险", "#ef553b"];
+
+function volCard(title, sub, d, stateFn, scaleMax, alert) {
+  const [label, col] = stateFn(d.last), chg = d.last - d.prev, wk = d.last - d.week_ago;
+  const pct = x => `${x >= 0 ? "+" : ""}${x.toFixed(2)} (${(x / (d.last - x) * 100).toFixed(1)}%)`;
+  return `<div class="card">
+    <div class="lbl">${title} <span style="opacity:.7">${sub}</span></div>
+    <div class="val" style="color:${col}">${d.last.toFixed(2)} <span style="font-size:14px">${label}</span></div>
+    <div class="caption">日变化 ${pct(chg)} · 周变化 ${pct(wk)} · 一年区间 ${d.low.toFixed(1)} ~ ${d.high.toFixed(1)}</div>
+    <div class="gauge-bar"><span style="width:${Math.min(100, d.last / scaleMax * 100)}%;background:${col}"></span>
+      ${alert ? `<i style="left:${alert / scaleMax * 100}%" title="警戒线 ${alert}"></i>` : ""}</div>
+    ${alert ? `<div class="caption">警戒线 ${alert}：还差 <b style="color:${col}">${(alert - d.last).toFixed(1)}</b>（${((alert / d.last - 1) * 100).toFixed(1)}%）</div>` : ""}
+  </div>`;
+}
+
+async function loadVol() {
+  try {
+    const r = await fetch("/api/vol"), j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    $("volBanner").textContent = `数据来源 Yahoo Finance（^VIX / ^MOVE），最新 ${new Date(j.vix.points.at(-1)[0]).toLocaleDateString("zh-CN")}`;
+    $("volCards").innerHTML =
+      volCard("VIX", "标普500 隐含波动率", j.vix, vixState, 50, null) +
+      volCard("MOVE", "美债期权隐含波动率", j.move, moveState, 150, MOVE_ALERT);
+
+    const line = (d, name, color, axis) => ({ type: "scatter", mode: "lines", name,
+      x: d.points.map(p => new Date(p[0])), y: d.points.map(p => p[1]), yaxis: axis,
+      line: { color, width: 2 }, hovertemplate: `${name} %{y:.2f}<extra></extra>` });
+    Plotly.react("volChart", [line(j.vix, "VIX", "#4da6ff", "y"), line(j.move, "MOVE", "#ffa15a", "y2")], {
+      ...DARK, height: 420, margin: { l: 45, r: 45, t: 30, b: 40 },
+      title: { text: "过去一年：VIX（左轴） vs MOVE（右轴）", font: { size: 14 } },
+      legend: { orientation: "h", y: 1.08, x: 0 }, hovermode: "x unified",
+      xaxis: { gridcolor: "#333" },
+      yaxis: { title: { text: "VIX" }, gridcolor: "#333", color: "#4da6ff" },
+      yaxis2: { title: { text: "MOVE" }, overlaying: "y", side: "right", color: "#ffa15a", range: [40, Math.max(135, j.move.high * 1.05)] },
+      shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, yref: "y2", y0: MOVE_ALERT, y1: MOVE_ALERT,
+        line: { color: "#ef553b", width: 1.5, dash: "dash" } }],
+      annotations: [{ xref: "paper", x: 1, yref: "y2", y: MOVE_ALERT, text: "MOVE 125 出逃线", showarrow: false,
+        yanchor: "bottom", xanchor: "right", font: { color: "#ef553b", size: 12 } }],
+    }, CFG);
+  } catch (e) {
+    $("volBanner").textContent = "⚠️ 波动率数据加载失败：" + e.message;
+  }
+}
+
 // ---------- CNN Fear & Greed ----------
 const FG_RATING = { "extreme fear": "极度恐慌", fear: "恐慌", neutral: "中性", greed: "贪婪", "extreme greed": "极度贪婪" };
 const FG_BANDS = [[0, 25, "#c0392b"], [25, 45, "#e67e22"], [45, 55, "#6b7280"], [55, 75, "#7ccf6b"], [75, 100, "#1e9e4a"]];
@@ -462,6 +535,7 @@ $("ticker").addEventListener("change", refresh);
 refresh();
 loadHeatmap();
 loadFearGreed();
+loadVol();
 </script>
 </body>
 </html>
